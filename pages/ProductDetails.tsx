@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../AppContext';
-import { ArrowRight, MessageCircle, Calculator, CreditCard, User, AlertCircle, Copy, Check, Globe, Plus, Minus } from 'lucide-react';
+import { ArrowRight, MessageCircle, Calculator, CreditCard, User, AlertCircle, Copy, Check, Plus, Minus, Loader2 } from 'lucide-react';
 import { STORE_NAME } from '../constants';
 
 const ProductDetails: React.FC = () => {
@@ -17,6 +17,7 @@ const ProductDetails: React.FC = () => {
   const [quantity, setQuantity] = useState(0);
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -33,6 +34,16 @@ const ProductDetails: React.FC = () => {
     }
   }, [product, state.payments]);
 
+  // حساب السعر الإجمالي بشكل لحظي (Memoized) لتحسين الأداء
+  const totalPriceUSD = useMemo(() => {
+    if (!product) return 0;
+    if (product.hasTiers) {
+      const tier = product.tiers?.find(t => t.id === selectedTierId);
+      return tier?.priceUSD || 0;
+    }
+    return (quantity * (product.pricePerMinUSD || 0) / (product.minQuantity || 1));
+  }, [product, selectedTierId, quantity]);
+
   if (!product) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center dark:text-white">
@@ -45,10 +56,6 @@ const ProductDetails: React.FC = () => {
 
   const selectedTier = product.tiers?.find(t => t.id === selectedTierId);
   const selectedPayment = state.payments.find(p => p.id === paymentMethodId);
-  
-  const totalPriceUSD = product.hasTiers 
-    ? (selectedTier?.priceUSD || 0)
-    : (quantity * (product.pricePerMinUSD || 0) / (product.minQuantity || 1));
 
   const copyToClipboard = (text: string, fieldName: string) => {
     if (!text) return;
@@ -68,44 +75,36 @@ const ProductDetails: React.FC = () => {
       return;
     }
 
-    let message = `*${STORE_NAME}*\n`;
-    message += `--------------------------\n`;
-    
-    if (category?.id === 'games') {
-      message += `💎 القسم: شحن الألعاب\n`;
-      message += `🎮 اسم المنتج: ${product.name}\n`;
-      if (product.hasTiers) {
-        message += `📦 الفئة المختارة: ${selectedTier?.name}\n`;
-      } else {
-        message += `🔢 الكمية: ${quantity}\n`;
-      }
-    } else if (category?.id === 'apps') {
-      message += `📱 القسم: شحن البرامج\n`;
-      message += `🏷️ اسم المنتج: ${product.name}\n`;
-      message += `🔢 الكمية: ${quantity}\n`;
-    } else {
-      message += `📁 القسم: ${category?.name || 'عام'}\n`;
-      message += `🏷️ اسم المنتج: ${product.name}\n`;
-      message += `🔢 الكمية: ${product.hasTiers ? selectedTier?.name : quantity}\n`;
-    }
+    setIsRedirecting(true);
 
-    message += `💰 السعر: ${formatPrice(totalPriceUSD)}\n`;
-    message += `💳 وسيلة الدفع: ${selectedPayment?.name || 'غير محددة'}\n`;
-    message += `🆔 ID الحساب: ${accountId}\n`;
-    message += `--------------------------\n`;
-    message += `يرجى مراجعة طلبي وتأكيد الشحن.`;
+    // بناء الرسالة بسرعة
+    const messageLines = [
+      `*${STORE_NAME}*`,
+      `--------------------------`,
+      `💎 القسم: ${category?.name || 'عام'}`,
+      `🎮 المنتج: ${product.name}`,
+      product.hasTiers ? `📦 الفئة: ${selectedTier?.name}` : `🔢 الكمية: ${quantity}`,
+      `💰 السعر: ${formatPrice(totalPriceUSD)}`,
+      `💳 الدفع: ${selectedPayment?.name || 'غير محدد'}`,
+      `🆔 ID الحساب: ${accountId}`,
+      `--------------------------`,
+      `يرجى تأكيد الطلب.`
+    ];
 
-    const encodedMessage = encodeURIComponent(message);
+    const encodedMessage = encodeURIComponent(messageLines.join('\n'));
     const cleanedWhatsApp = product.whatsappNumber.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${cleanedWhatsApp}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
+    
+    // استخدام window.location.href للتحويل المباشر دون تأخير "فتح تبويب جديد"
+    window.location.href = `https://wa.me/${cleanedWhatsApp}?text=${encodedMessage}`;
+    
+    // إعادة تعيين الحالة بعد ثوانٍ بسيطة في حال لم يغادر المستخدم المتصفح
+    setTimeout(() => setIsRedirecting(false), 2000);
   };
 
   const adjustQuantity = (amount: number) => {
     setQuantity(prev => {
       const step = category?.id === 'apps' ? 1000 : 1;
-      const newVal = Math.max(product.minQuantity || 1, prev + amount * step);
-      return newVal;
+      return Math.max(product.minQuantity || 1, prev + amount * step);
     });
   };
 
@@ -137,7 +136,7 @@ const ProductDetails: React.FC = () => {
                 {category?.name}
               </span>
             </div>
-            {/* Quick Currency Switcher */}
+            
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
               {state.currencies.filter(c => c.isActive).map(c => (
                 <button
@@ -189,26 +188,24 @@ const ProductDetails: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <button 
                     onClick={() => adjustQuantity(-1)}
-                    className="w-14 h-14 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+                    className="w-14 h-14 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors active:scale-90"
                   >
                     <Minus size={24} />
                   </button>
                   <input
                     type="number"
                     min={product.minQuantity}
-                    step={category?.id === 'apps' ? 1000 : 1}
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
                     className="flex-grow p-5 bg-slate-50 dark:bg-slate-900/30 border-2 border-slate-100 dark:border-slate-700 rounded-3xl focus:ring-4 focus:ring-primary-100 dark:focus:ring-primary-900/20 focus:border-primary-500 outline-none transition-all font-black text-xl dark:text-white text-center"
                   />
                   <button 
                     onClick={() => adjustQuantity(1)}
-                    className="w-14 h-14 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+                    className="w-14 h-14 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors active:scale-90"
                   >
                     <Plus size={24} />
                   </button>
                 </div>
-                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 font-bold">الحد الأدنى للطلب: {product.minQuantity}</p>
               </div>
             )}
 
@@ -227,7 +224,7 @@ const ProductDetails: React.FC = () => {
               />
             </div>
 
-            {/* Payment Method Selector */}
+            {/* Payment Method Info */}
             <div>
               <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
                 <CreditCard size={18} className="text-primary-600" />
@@ -249,54 +246,27 @@ const ProductDetails: React.FC = () => {
                 ))}
               </div>
 
-              {/* Detailed Payment Info */}
               {selectedPayment && (
-                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                  <h4 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
-                    <AlertCircle size={16} /> معلومات التحويل لـ {selectedPayment.name}
-                  </h4>
-                  
+                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
                   {selectedPayment.recipientName && (
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                       <div>
-                        <span className="text-[10px] block text-slate-400 font-black uppercase">اسم المستلم</span>
+                        <span className="text-[10px] block text-slate-400 font-black uppercase">المستلم</span>
                         <span className="font-bold dark:text-white">{selectedPayment.recipientName}</span>
                       </div>
-                      <button 
-                        onClick={() => copyToClipboard(selectedPayment.recipientName!, 'name')}
-                        className={`p-2 rounded-lg transition-all ${copiedField === 'name' ? 'bg-green-100 text-green-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-primary-600'}`}
-                      >
-                        {copiedField === 'name' ? <Check size={16} /> : <Copy size={16} />}
+                      <button onClick={() => copyToClipboard(selectedPayment.recipientName!, 'name')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                        {copiedField === 'name' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                       </button>
                     </div>
                   )}
-
                   {selectedPayment.accountNumber && (
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                       <div>
                         <span className="text-[10px] block text-slate-400 font-black uppercase">رقم الحساب</span>
                         <span className="font-bold dark:text-white">{selectedPayment.accountNumber}</span>
                       </div>
-                      <button 
-                        onClick={() => copyToClipboard(selectedPayment.accountNumber!, 'acc')}
-                        className={`p-2 rounded-lg transition-all ${copiedField === 'acc' ? 'bg-green-100 text-green-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-primary-600'}`}
-                      >
-                        {copiedField === 'acc' ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-                    </div>
-                  )}
-
-                  {selectedPayment.transferNumber && (
-                    <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div>
-                        <span className="text-[10px] block text-slate-400 font-black uppercase">رقم التحويل</span>
-                        <span className="font-bold dark:text-white">{selectedPayment.transferNumber}</span>
-                      </div>
-                      <button 
-                        onClick={() => copyToClipboard(selectedPayment.transferNumber!, 'trans')}
-                        className={`p-2 rounded-lg transition-all ${copiedField === 'trans' ? 'bg-green-100 text-green-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-primary-600'}`}
-                      >
-                        {copiedField === 'trans' ? <Check size={16} /> : <Copy size={16} />}
+                      <button onClick={() => copyToClipboard(selectedPayment.accountNumber!, 'acc')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                        {copiedField === 'acc' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                       </button>
                     </div>
                   )}
@@ -304,21 +274,33 @@ const ProductDetails: React.FC = () => {
               )}
             </div>
 
-            {/* Final Price and Buy Button */}
+            {/* Buy Button Container */}
             <div className="pt-8 border-t border-slate-100 dark:border-slate-700 mt-10">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-8">
                 <div className="text-center sm:text-right">
-                  <p className="text-sm text-slate-400 font-black mb-1 uppercase tracking-widest">إجمالي المبلغ:</p>
-                  <p className="text-4xl font-black text-primary-600 tracking-tight">
-                    {formatPrice(totalPriceUSD)}
-                  </p>
+                  <p className="text-sm text-slate-400 font-black mb-1 uppercase">الإجمالي:</p>
+                  <p className="text-4xl font-black text-primary-600 tracking-tight">{formatPrice(totalPriceUSD)}</p>
                 </div>
                 <button
                   onClick={handleBuy}
-                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-black py-5 px-10 rounded-3xl flex items-center justify-center gap-4 transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-green-200 dark:shadow-none border-b-4 border-green-800"
+                  disabled={isRedirecting}
+                  className={`w-full sm:w-auto font-black py-5 px-10 rounded-3xl flex items-center justify-center gap-4 transition-all hover:scale-105 active:scale-95 shadow-2xl border-b-4 ${
+                    isRedirecting 
+                    ? 'bg-slate-400 border-slate-600 cursor-not-allowed text-white' 
+                    : 'bg-green-600 hover:bg-green-700 text-white border-green-800 shadow-green-200 dark:shadow-none'
+                  }`}
                 >
-                  <MessageCircle size={28} />
-                  <span className="text-xl">طلب عبر واتساب</span>
+                  {isRedirecting ? (
+                    <>
+                      <Loader2 size={28} className="animate-spin" />
+                      <span className="text-xl">جارٍ التحويل...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle size={28} />
+                      <span className="text-xl">طلب عبر واتساب</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
