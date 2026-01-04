@@ -11,7 +11,7 @@ import ProductManager from './pages/Admin/ProductManager';
 import CategoryManager from './pages/Admin/CategoryManager';
 import CurrencyManager from './pages/Admin/CurrencyManager';
 import PaymentManager from './pages/Admin/PaymentManager';
-import AdminLogin from './pages/Admin/Login';
+import AdminLogin from './pages/Login';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
