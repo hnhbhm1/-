@@ -34,7 +34,6 @@ const ProductDetails: React.FC = () => {
     }
   }, [product, state.payments]);
 
-  // حساب السعر الإجمالي بشكل لحظي (Memoized) لتحسين الأداء
   const totalPriceUSD = useMemo(() => {
     if (!product) return 0;
     if (product.hasTiers) {
@@ -77,7 +76,6 @@ const ProductDetails: React.FC = () => {
 
     setIsRedirecting(true);
 
-    // بناء الرسالة بسرعة
     const messageLines = [
       `*${STORE_NAME}*`,
       `--------------------------`,
@@ -88,17 +86,16 @@ const ProductDetails: React.FC = () => {
       `💳 الدفع: ${selectedPayment?.name || 'غير محدد'}`,
       `🆔 ID الحساب: ${accountId}`,
       `--------------------------`,
-      `يرجى تأكيد الطلب.`
+      `تم الطلب من الموقع، يرجى التأكيد.`
     ];
 
     const encodedMessage = encodeURIComponent(messageLines.join('\n'));
     const cleanedWhatsApp = product.whatsappNumber.replace(/\D/g, '');
     
-    // استخدام window.location.href للتحويل المباشر دون تأخير "فتح تبويب جديد"
+    // استخدام href لسرعة التحويل المباشر
     window.location.href = `https://wa.me/${cleanedWhatsApp}?text=${encodedMessage}`;
     
-    // إعادة تعيين الحالة بعد ثوانٍ بسيطة في حال لم يغادر المستخدم المتصفح
-    setTimeout(() => setIsRedirecting(false), 2000);
+    setTimeout(() => setIsRedirecting(false), 3000);
   };
 
   const adjustQuantity = (amount: number) => {
@@ -109,7 +106,7 @@ const ProductDetails: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-700">
       <Link to={`/category/${product.categoryId}`} className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 group transition-colors">
         <ArrowRight size={20} className="group-hover:-translate-x-1 transition-transform" />
         <span className="font-bold">العودة إلى {category?.name || 'القسم'}</span>
@@ -137,7 +134,7 @@ const ProductDetails: React.FC = () => {
               </span>
             </div>
             
-            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
               {state.currencies.filter(c => c.isActive).map(c => (
                 <button
                   key={c.id}
@@ -155,9 +152,8 @@ const ProductDetails: React.FC = () => {
           </div>
 
           <div className="space-y-8">
-            {/* Tiers or Quantity */}
             {product.hasTiers ? (
-              <div>
+              <div className="animate-in slide-in-from-right-4 duration-300">
                 <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
                   <CreditCard size={18} className="text-primary-600" />
                   اختر فئة الشحن
@@ -180,7 +176,7 @@ const ProductDetails: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div>
+              <div className="animate-in slide-in-from-right-4 duration-300">
                 <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
                   <Calculator size={18} className="text-primary-600" />
                   حدد الكمية المطلوبة
@@ -209,7 +205,6 @@ const ProductDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Account ID Input */}
             <div>
               <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
                 <User size={18} className="text-primary-600" />
@@ -224,7 +219,6 @@ const ProductDetails: React.FC = () => {
               />
             </div>
 
-            {/* Payment Method Info */}
             <div>
               <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
                 <CreditCard size={18} className="text-primary-600" />
@@ -247,25 +241,25 @@ const ProductDetails: React.FC = () => {
               </div>
 
               {selectedPayment && (
-                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
+                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4 animate-in fade-in zoom-in-95">
                   {selectedPayment.recipientName && (
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div>
+                      <div className="overflow-hidden">
                         <span className="text-[10px] block text-slate-400 font-black uppercase">المستلم</span>
-                        <span className="font-bold dark:text-white">{selectedPayment.recipientName}</span>
+                        <span className="font-bold dark:text-white truncate block">{selectedPayment.recipientName}</span>
                       </div>
-                      <button onClick={() => copyToClipboard(selectedPayment.recipientName!, 'name')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                      <button onClick={() => copyToClipboard(selectedPayment.recipientName!, 'name')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 flex-shrink-0">
                         {copiedField === 'name' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                       </button>
                     </div>
                   )}
                   {selectedPayment.accountNumber && (
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div>
+                      <div className="overflow-hidden">
                         <span className="text-[10px] block text-slate-400 font-black uppercase">رقم الحساب</span>
-                        <span className="font-bold dark:text-white">{selectedPayment.accountNumber}</span>
+                        <span className="font-bold dark:text-white truncate block">{selectedPayment.accountNumber}</span>
                       </div>
-                      <button onClick={() => copyToClipboard(selectedPayment.accountNumber!, 'acc')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                      <button onClick={() => copyToClipboard(selectedPayment.accountNumber!, 'acc')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 flex-shrink-0">
                         {copiedField === 'acc' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                       </button>
                     </div>
@@ -274,11 +268,10 @@ const ProductDetails: React.FC = () => {
               )}
             </div>
 
-            {/* Buy Button Container */}
             <div className="pt-8 border-t border-slate-100 dark:border-slate-700 mt-10">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-8">
                 <div className="text-center sm:text-right">
-                  <p className="text-sm text-slate-400 font-black mb-1 uppercase">الإجمالي:</p>
+                  <p className="text-sm text-slate-400 font-black mb-1 uppercase tracking-widest">المبلغ المستحق:</p>
                   <p className="text-4xl font-black text-primary-600 tracking-tight">{formatPrice(totalPriceUSD)}</p>
                 </div>
                 <button
@@ -293,7 +286,7 @@ const ProductDetails: React.FC = () => {
                   {isRedirecting ? (
                     <>
                       <Loader2 size={28} className="animate-spin" />
-                      <span className="text-xl">جارٍ التحويل...</span>
+                      <span className="text-xl">جارٍ فتح واتساب...</span>
                     </>
                   ) : (
                     <>

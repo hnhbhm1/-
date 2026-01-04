@@ -1,7 +1,5 @@
 {
   "name": "ترند كارد - Trend Card واتساب",
   "description": "متجر إلكتروني متكامل لشحن الألعاب والبرامج والبطاقات الإلكترونية مع لوحة تحكم متقدمة ودعم التحويل عبر واتساب.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
+  "requestFramePermissions": []
 }
